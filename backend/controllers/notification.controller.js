@@ -9,11 +9,7 @@ export const getNotifications = async (req, res) => {
         });
 
         await Notification.updateMany({to: userId}, {read: true});
-        res.status(200).json({
-            success: true,
-            message: "Notifications fetched successfully",
-            notifications
-        });
+        res.status(200).json(notifications);
     } catch (error) {
         console.error("Error fetching notifications:", error);
         res.status(500).json({
