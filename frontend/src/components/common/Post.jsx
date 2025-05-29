@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {toast} from "react-hot-toast";
 import LoadingSpinner from "./LoadingSpinner";
+import { formatPostDate } from "../../utils/date";
 
 const Post = ({ post }) => {
 	const [comment, setComment] = useState("");
@@ -17,6 +18,13 @@ const Post = ({ post }) => {
 	});
 
 	const queryClient = useQueryClient();
+
+	const postOwner = post.user;
+	const isLiked = post.likes.includes(authUser._id);
+
+	const isMyPost = authUser._id === post.user._id;
+
+	const formattedDate = formatPostDate(post.createdAt);
 
 	const {mutate: deletePost, isPending: isDeleting} = useMutation({
 		mutationFn: async () => {
@@ -74,15 +82,45 @@ const Post = ({ post }) => {
 		onError: (error) => {
 			toast.error(error.message || "Failed to like post");
 		}
-	})
- 	const postOwner = post.user;
-	const isLiked = post.likes.includes(authUser._id);
+	});
 
-	const isMyPost = authUser._id === post.user._id;
-
-	const formattedDate = "1h";
-
-	const isCommenting = false;
+	const {mutate: commentPost, isPending: isCommenting, isError, error} = useMutation({
+		mutationFn: async (comment) => {
+			try {
+				const res = await fetch(`api/posts/comment/${post._id}`, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({ text: comment }),
+				});
+				const data = await res.json();
+				if (!res.ok) {
+					throw new Error(data.message || "Failed to post comment");
+				}	
+				return data; // Return the updated post with new comment
+			} catch (error) {
+				console.error("Error commenting on post:", error);
+				throw error; // Rethrow the error to handle it in the UI
+			}
+		},
+		onSuccess: () =>{
+			// toast.success("Comment posted successfully");
+			setComment(""); // Clear the comment input
+			queryClient.invalidateQueries({ queryKey: ["posts"] });
+			// queryClient.setQueryData(["posts"], (oldData) => {
+			// 	return oldData.map((p) => {
+			// 		if(p._id === post._id) {
+			// 			return { ...p, comment: updatedComments};
+			// 		}
+			// 		return p;
+			// 	});
+			// });
+		},
+		onError: (error) => {
+			toast.error(error.message || "Failed to post comment");
+		}
+	});
 
 	const handleDeletePost = () => {
 		deletePost();
@@ -90,6 +128,8 @@ const Post = ({ post }) => {
 
 	const handlePostComment = (e) => {
 		e.preventDefault();
+		if (isCommenting) return; // Prevent multiple clicks while commenting
+		commentPost(comment);
 	};
 
 	const handleLikePost = () => {
